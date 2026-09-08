@@ -21,6 +21,7 @@ from pathlib import Path
 import yaml
 
 from case_studies.utils.sweep_config import get_entry_schemes_for, get_top_k_values_for, load_sweep
+from tests.pm_helpers import invocations_for
 
 CASE_STUDY = "sp500_equity_option_analytics"
 REPO_ROOT = Path(__file__).parent.parent
@@ -31,8 +32,20 @@ LONG_SHORT = False
 
 
 def _max_symbols() -> int:
+    """The universe every run of the sweeping notebook is given.
+
+    Read through `invocations_for` rather than off a `parameters` block: the notebook
+    runs once per declared label now, and this file's question - can the CI universe
+    realize the grid - is the same for each of them only while they agree. Asserting
+    that they do is what keeps this a single number.
+    """
     overrides = yaml.safe_load((REPO_ROOT / "tests" / "overrides.yaml").read_text())
-    return overrides[SWEEPING_NOTEBOOK]["parameters"]["MAX_SYMBOLS"]
+    caps = {
+        run.parameters["MAX_SYMBOLS"]
+        for run in invocations_for(overrides[SWEEPING_NOTEBOOK], key=SWEEPING_NOTEBOOK)
+    }
+    assert len(caps) == 1, f"{SWEEPING_NOTEBOOK}: runs disagree on MAX_SYMBOLS: {sorted(caps)}"
+    return caps.pop()
 
 
 def _declared_labels() -> list[str]:
